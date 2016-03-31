@@ -37,30 +37,12 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="kbfiltr.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
+    <ClInclude Include="kbfiltr.h" />
     <ClInclude Include="public.h" />
     <ClInclude Include="kbfiltr.h" />
     <ClInclude Include="public.h" />
     <ClInclude Include="scancodes.h" />
     <ClInclude Include="kbfiltr.h" />
-    <ClInclude Include="public.h" />
-    <ClInclude Include="scancodes.h" />
-    <ClInclude Include="binding.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="kbfiltr.h" />
-    <ClInclude Include="keymap.h" />
-    <ClInclude Include="profile.h" />
-    <ClInclude Include="public.h" />
-    <ClInclude Include="scancodes.h" />
-    <ClInclude Include="binding.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="kbfiltr.h" />
-    <ClInclude Include="keymap.h" />
-    <ClInclude Include="profile.h" />
     <ClInclude Include="public.h" />
     <ClInclude Include="scancodes.h" />
     <ClInclude Include="binding.h">

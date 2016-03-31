@@ -10,7 +10,7 @@ Signature="$Windows NT$"
 Provider=%ProviderName%
 ClassGUID={4D36E96B-E325-11CE-BFC1-08002BE10318}
 Class=Keyboard
-DriverVer=03/27/2016,3.46.22.999
+DriverVer=03/27/2016,10.57.14.640
 ; Uncomment the following line when you have a valid catalog file.
 ;         If you use bogus catalog file installation will fail.
 CatalogFile=KmdfSamples.cat

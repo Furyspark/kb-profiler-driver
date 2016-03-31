@@ -41,6 +41,11 @@ Environment:
 #include <ntstrsafe.h>
 
 #include "profile_functions.c"
+#include <stdio.h>
+#include <string.h>
+#include <conio.h>
+#include <windowsx.h>
+#include <process.h>
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text (INIT, DriverEntry)
@@ -59,6 +64,11 @@ KEYOPTIONS keyOpts;
  * START HELPER FUNCTIONS
  */
 
+typedef struct rapidfireParams {
+	PDEVICE_EXTENSION devExt;
+	INT bindIndex;
+} rapidfireParams;
+
 VOID
 KbProfiler_ResetKeyOptions
 ()
@@ -66,11 +76,65 @@ KbProfiler_ResetKeyOptions
 	for (INT a = 0; a < 256; a++) {
 		keyOpts.keyHeld[a] = FALSE;
 		keyOpts.keyInMap[a] = 0;
+		keyOpts.keyToggled[a] = FALSE;
+		keyOpts.keyRapidfireState[a] = FALSE;
+		keyOpts.keyRapidfireCountdown[a] = 0;
+		keyOpts.rapidfireThread[a] = NULL;
 	}
 	keyOpts.curMap = 0;
 
 	return;
 }
+
+/*void sleep(unsigned int mseconds)
+{
+	clock_t goal = mseconds + clock();
+	while (goal > clock());
+}*/
+
+/*VOID
+KbProfiler_RapidFireThread
+(
+	void *param
+)
+{
+	while (TRUE) {
+		KEYBOARD_INPUT_DATA data[20];
+		INT endIndex = 0;
+
+		rapidfireParams *args = (rapidfireParams*)param;
+		INT bindIndex = args->bindIndex;
+		PDEVICE_EXTENSION devExt = args->devExt;
+
+		keyOpts.keyRapidfireCountdown[bindIndex]--;
+		if (keyOpts.keyRapidfireCountdown[bindIndex] <= 0) {
+			BINDING bind = profile.keymaps[keyOpts.keyInMap[bindIndex]].bindings[bindIndex];
+			keyOpts.keyRapidfireCountdown[bindIndex] += 30;
+
+			data[0].MakeCode = bind.code;
+			data[0].Flags = KEY_MAKE;
+			if (keyOpts.keyRapidfireState[bindIndex] == TRUE) {
+				data[0].Flags = KEY_BREAK;
+				keyOpts.keyRapidfireState[bindIndex] = FALSE;
+			}
+			else {
+				keyOpts.keyRapidfireState[bindIndex] = TRUE;
+			}
+			if (bind.codeE0) {
+				data[0].Flags += KEY_E0;
+			}
+			endIndex++;
+
+			(*(PSERVICE_CALLBACK_ROUTINE)(ULONG_PTR)devExt->UpperConnectData.ClassService)(
+				devExt->UpperConnectData.ClassDeviceObject,
+				&data[0],
+				&data[endIndex],
+				0);
+		}
+
+		sleep(1);
+	}
+}*/
 
 /**
  * END HELPER FUNCTIONS
@@ -902,7 +966,6 @@ Return Value:
 			}
 
 			if (profilePaused == FALSE && supressKey == FALSE) {
-				BOOLEAN sendOld = TRUE;
 				INT index = KbProfiler_GetBindIndex(InputDataStart[a].MakeCode);
 				INT keyInMap = keyOpts.keyInMap[index];
 				KEYMAP curKeymap = profile.keymaps[keyInMap];
@@ -923,16 +986,31 @@ Return Value:
 						keyOpts.keyHeld[index] = FALSE;
 					}
 					KbProfiler_SwitchToKeymap(&profile, &keyOpts, keymapTarget);
-					sendOld = FALSE;
 					endIndex = 0;
 				}
 				// Basic filtering
 				else if (curBind.code != SCANCODE_NONE) {
 					INT insertedKeys = 0;
+					// Handle toggled stuff
+					const INT TOGGLEACTION_NONE = 1;
+					const INT TOGGLEACTION_PRESS = 2;
+					const INT TOGGLEACTION_RELEASE = 3;
+					INT toggleAction = TOGGLEACTION_NONE;
+					if ((InputDataStart[a].Flags & KEY_BREAK) == 0 && curBind.toggle == TRUE) {
+						if (keyOpts.keyToggled[index] == FALSE) {
+							toggleAction = TOGGLEACTION_PRESS;
+						}
+						else if (keyOpts.keyToggled[index] == TRUE) {
+							toggleAction = TOGGLEACTION_RELEASE;
+						}
+					}
 					// Press key specifics
-					if ((InputDataStart[a].Flags & KEY_BREAK) == 0) {
+					if (((InputDataStart[a].Flags & KEY_BREAK) == 0 && keyOpts.keyToggled[index] == FALSE) || toggleAction == TOGGLEACTION_PRESS) {
 						// Learn about key press
 						keyOpts.keyHeld[index] = TRUE;
+						if (toggleAction == TOGGLEACTION_PRESS) {
+							keyOpts.keyToggled[index] = TRUE;
+						}
 						// Press modifier keys
 						if (curBind.shift) {
 							data[insertedKeys].MakeCode = SCANCODE_LSHIFT;
@@ -952,21 +1030,38 @@ Return Value:
 					}
 
 					// Filter the base key
-					data[insertedKeys].MakeCode = curBind.code;
-					data[insertedKeys].Flags = InputDataStart[a].Flags;
-					// Determine E0 flag
-					if (data[insertedKeys].Flags & KEY_E0 && !curBind.codeE0) {
-						data[insertedKeys].Flags -= KEY_E0;
+					if (keyOpts.keyToggled[index] == FALSE || (
+						toggleAction == TOGGLEACTION_PRESS && (InputDataStart[a].Flags & KEY_BREAK) == 0) || (
+							toggleAction == TOGGLEACTION_RELEASE && InputDataStart[a].Flags & KEY_BREAK
+							))
+					{
+						data[insertedKeys].MakeCode = curBind.code;
+						data[insertedKeys].Flags = InputDataStart[a].Flags;
+						// Determine E0 flag
+						if (data[insertedKeys].Flags & KEY_E0 && !curBind.codeE0) {
+							data[insertedKeys].Flags -= KEY_E0;
+						}
+						else if (!(data[insertedKeys].Flags & KEY_E0) && curBind.codeE0) {
+							data[insertedKeys].Flags += KEY_E0;
+						}
+						// Rapid fire
+						/*if (curBind.rapidfire > 0) {
+							rapidfireParams *args;
+							args = (rapidfireParams *)malloc(sizeof(rapidfireParams));
+							args->bindIndex = index;
+							args->devExt = devExt;
+							_beginthread(KbProfiler_RapidFireThread, 0, (void*)args);
+						}*/
+						insertedKeys++;
 					}
-					else if (!(data[insertedKeys].Flags & KEY_E0) && curBind.codeE0) {
-						data[insertedKeys].Flags += KEY_E0;
-					}
-					insertedKeys++;
 
 					// Release key specifics
-					if (InputDataStart[a].Flags & KEY_BREAK) {
+					if ((InputDataStart[a].Flags & KEY_BREAK && keyOpts.keyToggled[index] == FALSE) || toggleAction == TOGGLEACTION_RELEASE) {
 						// Learn about key release
 						keyOpts.keyHeld[index] = FALSE;
+						keyOpts.keyToggled[index] = FALSE;
+						keyOpts.keyRapidfireCountdown[index] = 0;
+						keyOpts.keyRapidfireState[index] = FALSE;
 						// Keymap handling
 						if (KbProfiler_TargetKeymapIsBindEmpty(&profile, index, keyOpts.curMap) == FALSE || keyOpts.curMap == 0) {
 							keyOpts.keyInMap[index] = keyOpts.curMap;
@@ -988,8 +1083,8 @@ Return Value:
 							insertedKeys++;
 						}
 					}
+
 					endIndex = insertedKeys;
-					sendOld = FALSE;
 				}
 			}
 			else if(supressKey == FALSE) {

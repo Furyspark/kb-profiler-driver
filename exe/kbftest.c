@@ -117,7 +117,6 @@ KbProfiler_ParseProfileJSON
 
 			INT bindIndex = KbProfiler_GetBindIndex(KbProfiler_TranslateKeyString(keyStr));
 			INT originIndex = KbProfiler_GetBindIndex(KbProfiler_TranslateKeyString(originStr));
-
 			// Parse E0
 			if (KbProfiler_IsE0Key(keyStr)) {
 				(*profile).keymaps[a].bindings[originIndex].codeE0 = TRUE;
@@ -172,24 +171,29 @@ KbProfiler_ParseProfileJSON
 					(*profile).keymaps[a].bindings[originIndex].alt = TRUE;
 				}
 				// Parse rapid fire
-				cJSON * rapidfire = cJSON_GetObjectItem(bind, "rapidfire");
-				if (rapidfire->type == cJSON_String && strcmp(rapidfire->valuestring, "0") != 0) {
-					INT rapidfireValue = StringToInt(rapidfire->valuestring);
-					(*profile).keymaps[a].bindings[originIndex].rapidfire = rapidfireValue;
-				}
-				else if (rapidfire->type == cJSON_Number && rapidfire->valueint != 0) {
-					(*profile).keymaps[a].bindings[originIndex].rapidfire = rapidfire->valueint;
+				if (cJSON_HasObjectItem(bind, "rapidfire")) {
+					cJSON * rapidfire = cJSON_GetObjectItem(bind, "rapidfire");
+					if (rapidfire->type == cJSON_String && strcmp(rapidfire->valuestring, "0") != 0) {
+						INT rapidfireValue = StringToInt(rapidfire->valuestring);
+						(*profile).keymaps[a].bindings[originIndex].rapidfire = rapidfireValue;
+					}
+					else if (rapidfire->type == cJSON_Number && rapidfire->valueint != 0) {
+						(*profile).keymaps[a].bindings[originIndex].rapidfire = rapidfire->valueint;
+					}
 				}
 				// Parse toggle
-				cJSON * toggle = cJSON_GetObjectItem(bind, "toggle");
-				if (toggle->type == cJSON_String && strcmp(toggle->valuestring, "0") != 0) {
-					(*profile).keymaps[a].bindings[originIndex].toggle = TRUE;
-				}
-				else if (toggle->type == cJSON_Number && toggle->valueint != 0) {
-					(*profile).keymaps[a].bindings[originIndex].toggle = TRUE;
-				}
-				else if (toggle->type == cJSON_True) {
-					(*profile).keymaps[a].bindings[originIndex].toggle = TRUE;
+				if (cJSON_HasObjectItem(bind, "toggle")) {
+					cJSON * toggleJSON = cJSON_GetObjectItem(bind, "toggle");
+					if (toggleJSON->type == cJSON_String && strcmp(toggleJSON->valuestring, "0") != 0) {
+						(*profile).keymaps[a].bindings[originIndex].toggle = TRUE;
+						printf("TOGGLE!\n");
+					}
+					else if (toggleJSON->type == cJSON_Number && toggleJSON->valueint != 0) {
+						(*profile).keymaps[a].bindings[originIndex].toggle = TRUE;
+					}
+					else if (toggleJSON->type == cJSON_True) {
+						(*profile).keymaps[a].bindings[originIndex].toggle = TRUE;
+					}
 				}
 			}
 		}
@@ -471,17 +475,6 @@ main(
 	/**
 	 * USER STUFF
 	 */
-	
-
-	//KbProfiler_LoadProfile(&profile, );
-
-
-	/*profile.keymaps[0].bindings[KbProfiler_GetBindIndex(SCANCODE_D)].code = SCANCODE_Z;
-	profile.keymaps[0].bindings[KbProfiler_GetBindIndex(SCANCODE_D)].shift = TRUE;
-	profile.keymaps[0].bindings[KbProfiler_GetBindIndex(SCANCODE_S)].code = SCANCODE_X;
-	profile.keymaps[1].bindings[KbProfiler_GetBindIndex(SCANCODE_S)].code = SCANCODE_G;
-	profile.keymaps[0].bindings[KbProfiler_GetBindIndex(SCANCODE_A)].keymap = 1;
-	profile.empty = FALSE;*/
 
 	if (!DeviceIoControl(file,
 		IOCTL_KBFILTR_GET_PROFILE,
